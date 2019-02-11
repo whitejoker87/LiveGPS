@@ -9,6 +9,7 @@ import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.location.Location;
 import android.os.AsyncTask;
+import android.os.Binder;
 import android.os.IBinder;
 import android.preference.PreferenceManager;
 
@@ -50,16 +51,17 @@ public class MainActivity extends AppCompatActivity implements
     // для получения обновления местоположения
     private LocationUpdatesService mService = null;
 
-    // мониторинг bind
+
+    // мониторинг onBind
     private boolean mBound = false;
 
     private Button mRequestLocationUpdatesButton;
     private Button mRemoveLocationUpdatesButton;
 
-    private LocationViewModel viewModel;
+    //private LocationViewModel viewModel;
     private ActivityMainBinding binding;
 
-    // следит за подключением к серверу
+    // следит за подключением к сервису
     private final ServiceConnection mServiceConnection = new ServiceConnection() {
 
         @Override
@@ -76,14 +78,11 @@ public class MainActivity extends AppCompatActivity implements
         }
     };
 
-    private TCPClient mTcpClient;
-    //private ConnectTask connect;
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        viewModel = ViewModelProviders.of(this).get(LocationViewModel.class);
+        //viewModel = ViewModelProviders.of(this).get(LocationViewModel.class);
         binding = DataBindingUtil.setContentView(this, R.layout.activity_main);
 
         myReceiver = new MyReceiver();
@@ -113,8 +112,6 @@ public class MainActivity extends AppCompatActivity implements
                 } else {
                     mService.requestLocationUpdates();
                 }
-                new ConnectTask().execute("");
-                //connect.execute("");
             }
         });
 
@@ -129,8 +126,7 @@ public class MainActivity extends AppCompatActivity implements
         setButtonsState(Utils.requestingLocationUpdates(this));
 
         //так service оповещается о необходимости выхода их foreground
-        bindService(new Intent(this, LocationUpdatesService.class), mServiceConnection,
-                Context.BIND_AUTO_CREATE);
+        bindService(new Intent(this, LocationUpdatesService.class), mServiceConnection, Context.BIND_AUTO_CREATE);
     }
 
     @Override
@@ -145,14 +141,6 @@ public class MainActivity extends AppCompatActivity implements
         LocalBroadcastManager.getInstance(this).unregisterReceiver(myReceiver);
         super.onPause();
 
-
-        if(connect != null) {
-            connect.cancel(true);
-        }
-        if(mTcpClient != null) {
-            mTcpClient.stopClient();
-            mTcpClient = null;
-        }
     }
 
     @Override
@@ -167,6 +155,9 @@ public class MainActivity extends AppCompatActivity implements
         super.onStop();
     }
 
+
+
+
     //проверка разрешений
     private boolean checkPermissions() {
         return  PackageManager.PERMISSION_GRANTED == ActivityCompat.checkSelfPermission(this,
@@ -174,8 +165,7 @@ public class MainActivity extends AppCompatActivity implements
     }
 
     private void requestPermissions() {
-        boolean shouldProvideRationale =
-                ActivityCompat.shouldShowRequestPermissionRationale(this,
+        boolean shouldProvideRationale = ActivityCompat.shouldShowRequestPermissionRationale(this,
                         Manifest.permission.ACCESS_FINE_LOCATION);
 
         //дополнительный запрос(если забыт флажок «Больше не спрашивать».)
@@ -246,8 +236,7 @@ public class MainActivity extends AppCompatActivity implements
         public void onReceive(Context context, Intent intent) {
             Location location = intent.getParcelableExtra(LocationUpdatesService.EXTRA_LOCATION);
             if (location != null) {
-                Toast.makeText(MainActivity.this, Utils.getLocationText(location),
-                        Toast.LENGTH_SHORT).show();
+                Toast.makeText(MainActivity.this, Utils.getLocationText(location), Toast.LENGTH_SHORT).show();
             }
         }
     }
@@ -270,41 +259,6 @@ public class MainActivity extends AppCompatActivity implements
             mRemoveLocationUpdatesButton.setEnabled(false);
         }
     }
-
-
-    public class ConnectTask extends AsyncTask<String,String,TCPClient> {
-
-        @Override
-        protected TCPClient doInBackground(String... message) {
-
-            //we create a TCPClient object and
-            mTcpClient = new TCPClient(new TCPClient.OnMessageReceived() {
-                @Override
-                //here the messageReceived method is implemented
-                public void messageReceived(String message) {
-
-                    //this method calls the onProgressUpdate
-                    publishProgress(message);
-
-                }
-            });
-            mTcpClient.run();
-
-            return null;
-        }
-
-//        @Override
-//        protected void onProgressUpdate(String... values) {
-//            super.onProgressUpdate(values);
-//            View view = adapter.getChildView(0, 0, false, null, null);
-//            TextView text = (TextView) view.findViewById(R.id.betChildOdd);
-//            child2.get(0).get(0).put("OLD", text.getText().toString());
-//            child2.get(0).get(0).put(CONVERTED_ODDS, values[0].toString());
-//            child2.get(0).get(0).put("CHANGE", "TRUE");
-//            adapter.notifyDataSetChanged();
-//        }
-    }
-
 }
 
 

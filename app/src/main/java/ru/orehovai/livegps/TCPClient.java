@@ -1,5 +1,8 @@
 package ru.orehovai.livegps;
 
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.os.BatteryManager;
 import android.telephony.TelephonyManager;
 
 import java.io.BufferedReader;
@@ -26,7 +29,15 @@ public class TCPClient {
     // used to read messages from the server
     private BufferedReader mBufferIn;
 
-    private String uid;
+    private String stringForSend;
+
+    public String getStringForSend() {
+        return stringForSend;
+    }
+
+    public void setStringForSend(String stringForSend) {
+        this.stringForSend = stringForSend;
+    }
 
     /**
      * Constructor of the class. OnMessagedReceived listens for the messages
@@ -49,6 +60,7 @@ public class TCPClient {
         }
     }
 
+
     /**
      * Close the connection and release the members
      */
@@ -69,56 +81,50 @@ public class TCPClient {
 
     public void run() {
 
-        mRun = true;
-
-        try {
-            // here you must put your computer's IP address.
-            InetAddress serverAddr = InetAddress.getByName(SERVER_IP);
-
-            // create a socket to make the connection with the server
-            Socket socket = new Socket(serverAddr, SERVER_PORT);
-
+            mRun = true;
             try {
+                // here you must put your computer's IP address.
+                InetAddress serverAddr = InetAddress.getByName(SERVER_IP);
 
-                // sends the message to the server
-                mBufferOut = new PrintWriter(new BufferedWriter(
-                        new OutputStreamWriter(socket.getOutputStream())), true);
+                // create a socket to make the connection with the server
+                Socket socket = new Socket(serverAddr, SERVER_PORT);
 
-                // receives the message which the server sends back
-                mBufferIn = new BufferedReader(new InputStreamReader(
-                        socket.getInputStream()));
-                // send login name
-                sendMessage("rtt003,356217625371611,-59.4364251,-129.9839853,0023,0014,123,090,20130618,195430,+3,24,60,A,0");
-                // in this while the client listens for the messages sent by the
-                // server
-                while (mRun) {
+                try {
 
-                    mServerMessage = mBufferIn.readLine();
+                    // sends the message to the server
+                    mBufferOut = new PrintWriter(new BufferedWriter(
+                            new OutputStreamWriter(socket.getOutputStream())), true);
 
-                    if (mServerMessage != null && mMessageListener != null) {
-                        // call the method messageReceived from MyActivity class
-                        mMessageListener.messageReceived(mServerMessage);
-                    }
+                    // receives the message which the server sends back
+                    mBufferIn = new BufferedReader(new InputStreamReader(
+                            socket.getInputStream()));
+                    // in this while the client listens for the messages sent by the
+                    // server
+                    sendMessage(stringForSend);
+//                    while (mRun) {
+//
+//                        mServerMessage = mBufferIn.readLine();
+//
+//                        if (mServerMessage != null && mMessageListener != null) {
+//                            // call the method messageReceived from MyActivity class
+//                            mMessageListener.messageReceived(mServerMessage);
+//                        }
+//
+//                    }
 
+                } catch (Exception e) {
+                    e.printStackTrace();
+                } finally {
+                    // the socket must be closed. It is not possible to reconnect to
+                    // this socket
+                    // after it is closed, which means a new socket instance has to
+                    // be created.
+                    socket.close();
                 }
-
             } catch (Exception e) {
-
                 e.printStackTrace();
-
-            } finally {
-                // the socket must be closed. It is not possible to reconnect to
-                // this socket
-                // after it is closed, which means a new socket instance has to
-                // be created.
-                socket.close();
             }
 
-        } catch (Exception e) {
-
-            e.printStackTrace();
-
-        }
 
     }
 

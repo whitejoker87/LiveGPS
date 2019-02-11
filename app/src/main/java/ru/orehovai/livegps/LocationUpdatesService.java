@@ -6,8 +6,10 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.ServiceConnection;
 import android.content.res.Configuration;
 import android.location.Location;
 import android.os.Binder;
@@ -32,6 +34,13 @@ import com.google.android.gms.tasks.Task;
 public class LocationUpdatesService extends Service {
 
     private static final String PACKAGE_NAME = "ru.orehovai.livegps";
+
+    static final String PROTOCOL = "rtt003";
+    static final String IMEI = "356217625371611";
+    static final String UTC = "+3";
+    static final String GSM_LEVEL = "99";
+    static final String GPS_OR_LBS = "A";
+    static final String SOS = "0";
 
     private static final String TAG = LocationUpdatesService.class.getSimpleName();
 
@@ -68,13 +77,32 @@ public class LocationUpdatesService extends Service {
     //Callback для изменения местоположения
     private LocationCallback mLocationCallback;
 
-    private Handler mServiceHandler;
+    //private Handler mServiceHandler;
 
     //Нынешнее местоположение
     private Location mLocation;
 
+    //для отправки данных на сервер
+    private DataSendService dataSendService = null;
+    private boolean dataBound = false;
+
     public LocationUpdatesService() {
     }
+
+    private final ServiceConnection dataSendServiceConnection = new ServiceConnection() {
+        @Override
+        public void onServiceConnected(ComponentName name, IBinder service) {
+            DataSendService.DataSendBinder binder = (DataSendService.DataSendBinder) service;
+            dataSendService = binder.getService();
+            dataBound = true;
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName name) {
+            dataSendService = null;
+            dataBound = false;
+        }
+    };
 
     @Override
     public void onCreate() {
@@ -91,9 +119,11 @@ public class LocationUpdatesService extends Service {
         createLocationRequest();
         getLastLocation();
 
-        HandlerThread handlerThread = new HandlerThread(TAG);
-        handlerThread.start();
-        mServiceHandler = new Handler(handlerThread.getLooper());
+        bindService(new Intent(this, DataSendService.class), dataSendServiceConnection, Context.BIND_AUTO_CREATE);
+
+//        HandlerThread handlerThread = new HandlerThread(TAG);
+//        handlerThread.start();
+//        mServiceHandler = new Handler(handlerThread.getLooper());
         mNotificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
 
         // Android O требуется канал дя оповещений
@@ -156,7 +186,11 @@ public class LocationUpdatesService extends Service {
 
     @Override
     public void onDestroy() {
-        mServiceHandler.removeCallbacksAndMessages(null);
+//        mServiceHandler.removeCallbacksAndMessages(null);
+        if (dataBound) {
+            unbindService(dataSendServiceConnection);
+            dataBound = false;
+        }
     }
 
     public void requestLocationUpdates() {
@@ -243,11 +277,14 @@ public class LocationUpdatesService extends Service {
 
         mLocation = location;
 
-        //Уведомление о новом местополодении
+        //Уведомление о новом местоположении
         Intent intent = new Intent(ACTION_BROADCAST);
         intent.putExtra(EXTRA_LOCATION, location);
         LocalBroadcastManager.getInstance(getApplicationContext()).sendBroadcast(intent);
 
+        if (location != null)dataSendService.setLocation(location);
+        //отправляем полученные данные на сервер
+        if (dataBound)dataSendService.sendData();
 
         // Обновление содержимого уведомления, если оно работает в Foreground Service.
         if (serviceIsRunningInForeground(this)) {
