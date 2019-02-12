@@ -86,9 +86,6 @@ public class LocationUpdatesService extends Service {
     private DataSendService dataSendService = null;
     private boolean dataBound = false;
 
-    public LocationUpdatesService() {
-    }
-
     private final ServiceConnection dataSendServiceConnection = new ServiceConnection() {
         @Override
         public void onServiceConnected(ComponentName name, IBinder service) {
