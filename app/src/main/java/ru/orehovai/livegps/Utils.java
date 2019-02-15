@@ -5,13 +5,16 @@ import android.location.Location;
 import android.preference.PreferenceManager;
 
 import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
 import java.util.Date;
+import java.util.Locale;
 
 import static ru.orehovai.livegps.LocationUpdatesService.*;
 
 class Utils {
 
-    static final String KEY_REQUESTING_LOCATION_UPDATES = "requesting_locaction_updates";
+    static final String KEY_REQUESTING_LOCATION_UPDATES = "requesting_location_updates";
 
     //true если запрос данных о местополождении
     static boolean requestingLocationUpdates(Context context) {
@@ -29,7 +32,7 @@ class Utils {
 
     //Возвращает данные о местополодении как строку
     static String getLocationText(Location location) {
-        return location == null ? "Unknown location" :
+        return location == null ? "Неизвестное место" :
                 "(" + location.getLatitude() + ", " + location.getLongitude() + ")";
     }
 
@@ -39,7 +42,6 @@ class Utils {
     }
 
     static String getLocationStringForServer(float batteryLevel, int numOfSats, Location location) {
-        //if (location.getExtras() != null)  numOfSats = location.getExtras().getInt("satellites");
         return location == null ? "" : PROTOCOL + ","
                 + IMEI + ","
                 + location.getLatitude() + ","
@@ -48,10 +50,10 @@ class Utils {
                 + location.getAltitude() + ","
                 + location.getBearing() + ","
                 + batteryLevel + ","
-                + DateFormat.getDateInstance().format(new Date()) + ","
+                + new SimpleDateFormat("yyyy.MM.dd", Locale.US).format(Calendar.getInstance().getTime()) + ","// в таком формате(без запятых) все корректно отображается на карте
                 + location.getTime() + ","
                 + UTC + ","
-                //+ location.getExtras().getInt("satellites") + ","
+                //+ location.getExtras().getInt("satellites") + ","//не работает по неизвестной мне причине
                 + numOfSats + ","
                 + GSM_LEVEL + ","
                 + GPS_OR_LBS + ","

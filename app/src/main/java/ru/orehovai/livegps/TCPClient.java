@@ -1,10 +1,5 @@
 package ru.orehovai.livegps;
 
-import android.content.Intent;
-import android.content.IntentFilter;
-import android.os.BatteryManager;
-import android.telephony.TelephonyManager;
-
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.InputStreamReader;
@@ -15,20 +10,19 @@ import java.net.Socket;
 
 public class TCPClient {
 
+    //данные сервера
     public static final String SERVER_IP = "srv1.livegpstracks.com"; // your computer IP
-    // address
     public static final int SERVER_PORT = 3359;
-    // message to send to the server
-    private String mServerMessage;
-    // sends message received notifications
-    private OnMessageReceived mMessageListener = null;
-    // while this is true, the server will continue running
+    // Слушатель для ответных сообщений с сервера(на будущее)
+    //private OnMessageReceived mMessageListener = null;
+    //private String mServerMessage;
+    // Сервер запушен если true
     private boolean mRun = false;
-    // used to send messages
+    // Для передачи сообщений
     private PrintWriter mBufferOut;
-    // used to read messages from the server
+    // Для приема сообщений
     private BufferedReader mBufferIn;
-
+    //сообщение для передачи
     private String stringForSend;
 
     public String getStringForSend() {
@@ -40,19 +34,13 @@ public class TCPClient {
     }
 
     /**
-     * Constructor of the class. OnMessagedReceived listens for the messages
-     * received from server
+     * Конструктор со слушателем ответа(на будущее)
      */
-    public TCPClient(OnMessageReceived listener) {
-        mMessageListener = listener;
-    }
+//    public TCPClient(OnMessageReceived listener) {
+//        mMessageListener = listener;
+//    }
 
-    /**
-     * Sends the message entered by client to the server
-     *
-     * @param message
-     *            text entered by client
-     */
+    //передача сообщения
     public void sendMessage(String message) {
         if (mBufferOut != null && !mBufferOut.checkError()) {
             mBufferOut.println(message);
@@ -62,7 +50,7 @@ public class TCPClient {
 
 
     /**
-     * Close the connection and release the members
+     * Закрываем соединение
      */
     public void stopClient() {
 
@@ -73,45 +61,31 @@ public class TCPClient {
             mBufferOut.close();
         }
 
-        mMessageListener = null;
+        //mMessageListener = null;
         mBufferIn = null;
         mBufferOut = null;
-        mServerMessage = null;
+        //mServerMessage = null;
     }
 
     public void run() {
 
             mRun = true;
             try {
-                // here you must put your computer's IP address.
                 InetAddress serverAddr = InetAddress.getByName(SERVER_IP);
-
-                // create a socket to make the connection with the server
                 Socket socket = new Socket(serverAddr, SERVER_PORT);
-
                 try {
-
-                    // sends the message to the server
                     mBufferOut = new PrintWriter(new BufferedWriter(
                             new OutputStreamWriter(socket.getOutputStream())), true);
-
-                    // receives the message which the server sends back
                     mBufferIn = new BufferedReader(new InputStreamReader(
                             socket.getInputStream()));
-                    // in this while the client listens for the messages sent by the
-                    // server
                     sendMessage(stringForSend);
 //                    while (mRun) {
-//
 //                        mServerMessage = mBufferIn.readLine();
-//
 //                        if (mServerMessage != null && mMessageListener != null) {
 //                            // call the method messageReceived from MyActivity class
 //                            mMessageListener.messageReceived(mServerMessage);
 //                        }
-//
 //                    }
-
                 } catch (Exception e) {
                     e.printStackTrace();
                 } finally {
@@ -131,7 +105,7 @@ public class TCPClient {
     // Declare the interface. The method messageReceived(String message) will
     // must be implemented in the MyActivity
     // class at on asynckTask doInBackground
-    public interface OnMessageReceived {
-        public void messageReceived(String message);
-    }
+//    public interface OnMessageReceived {
+//        public void messageReceived(String message);
+//    }
 }

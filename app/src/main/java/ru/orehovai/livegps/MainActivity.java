@@ -8,13 +8,11 @@ import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.location.Location;
-import android.os.AsyncTask;
-import android.os.Binder;
+import android.os.Build;
 import android.os.IBinder;
 import android.preference.PreferenceManager;
 
 import androidx.databinding.DataBindingUtil;
-import androidx.lifecycle.ViewModelProviders;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import androidx.appcompat.app.AppCompatActivity;
 import android.os.Bundle;
@@ -36,13 +34,11 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.Toast;
 
-import java.util.Timer;
-
 public class MainActivity extends AppCompatActivity implements
         SharedPreferences.OnSharedPreferenceChangeListener {
     private static final String TAG = MainActivity.class.getSimpleName();
 
-    // Проверка разрешения выполенения
+    // Проверка разрешения выполнения
     private static final int REQUEST_PERMISSIONS_REQUEST_CODE = 34;
 
     // обратная связь от Service
@@ -51,14 +47,14 @@ public class MainActivity extends AppCompatActivity implements
     // для получения обновления местоположения
     private LocationUpdatesService mService = null;
 
-
     // мониторинг onBind
     private boolean mBound = false;
+    //мониторинг нажатия кнопки
+    private boolean clickRequest;
 
     private Button mRequestLocationUpdatesButton;
     private Button mRemoveLocationUpdatesButton;
 
-    //private LocationViewModel viewModel;
     private ActivityMainBinding binding;
 
     // следит за подключением к сервису
@@ -78,18 +74,26 @@ public class MainActivity extends AppCompatActivity implements
         }
     };
 
+
+    public boolean isClickRequest() {
+        return clickRequest;
+    }
+
+    public void setClickRequest(boolean clickRequest) {
+        this.clickRequest = clickRequest;
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        //viewModel = ViewModelProviders.of(this).get(LocationViewModel.class);
         binding = DataBindingUtil.setContentView(this, R.layout.activity_main);
 
         myReceiver = new MyReceiver();
 
-        // Проверка разрешений(чтобы избежать выключение их вручную)
+        // Проверка разрешений
         if (Utils.requestingLocationUpdates(this)) {
-            if (!checkPermissions()) {
+            if (checkPermissions()) {
                 requestPermissions();
             }
         }
@@ -107,7 +111,8 @@ public class MainActivity extends AppCompatActivity implements
         mRequestLocationUpdatesButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                if (!checkPermissions()) {
+                setClickRequest(true);
+                if (checkPermissions()) {
                     requestPermissions();
                 } else {
                     mService.requestLocationUpdates();
@@ -118,6 +123,7 @@ public class MainActivity extends AppCompatActivity implements
         mRemoveLocationUpdatesButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
+                setClickRequest(false);
                 mService.removeLocationUpdates();
             }
         });
@@ -125,7 +131,7 @@ public class MainActivity extends AppCompatActivity implements
         // состояние кнопок при перезвпуске активити
         setButtonsState(Utils.requestingLocationUpdates(this));
 
-        //так service оповещается о необходимости выхода их foreground
+        //так service оповещается о необходимости выхода их foreground и стартует при запуске
         bindService(new Intent(this, LocationUpdatesService.class), mServiceConnection, Context.BIND_AUTO_CREATE);
     }
 
@@ -155,13 +161,12 @@ public class MainActivity extends AppCompatActivity implements
         super.onStop();
     }
 
-
-
-
     //проверка разрешений
     private boolean checkPermissions() {
-        return  PackageManager.PERMISSION_GRANTED == ActivityCompat.checkSelfPermission(this,
-                Manifest.permission.ACCESS_FINE_LOCATION);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            return checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED;
+        }
+        return true;//если android < 23
     }
 
     private void requestPermissions() {
@@ -170,7 +175,7 @@ public class MainActivity extends AppCompatActivity implements
 
         //дополнительный запрос(если забыт флажок «Больше не спрашивать».)
         if (shouldProvideRationale) {
-            Log.i(TAG, "Displaying permission rationale to provide additional context.");
+            Log.i(TAG, "Отображаем permission rationale");
             Snackbar.make(
                     findViewById(R.id.activity_main),
                     R.string.permission_rationale,
@@ -204,7 +209,7 @@ public class MainActivity extends AppCompatActivity implements
                 Log.i(TAG, "User interaction was cancelled.");
             } else if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 // Есть разрешение
-                mService.requestLocationUpdates();
+                if (isClickRequest()) mService.requestLocationUpdates();//запрашиваем местополодение если запрос пришел после нажатия на кнопку
             } else {
                 // Запрещено
                 setButtonsState(false);

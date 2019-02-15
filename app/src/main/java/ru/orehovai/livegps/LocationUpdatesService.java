@@ -1,5 +1,6 @@
 package ru.orehovai.livegps;
 
+import android.Manifest;
 import android.app.ActivityManager;
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -10,20 +11,25 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.content.pm.PackageManager;
 import android.content.res.Configuration;
+import android.location.GpsSatellite;
+import android.location.GpsStatus;
 import android.location.Location;
+import android.location.LocationManager;
 import android.os.Binder;
 import android.os.Build;
-import android.os.Handler;
-import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.Looper;
+
 import androidx.annotation.NonNull;
 import androidx.core.app.NotificationCompat;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
+
 import android.util.Log;
 
 import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationAvailability;
 import com.google.android.gms.location.LocationCallback;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationResult;
@@ -31,10 +37,11 @@ import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
 
-public class LocationUpdatesService extends Service {
+public class LocationUpdatesService extends Service implements GpsStatus.Listener {
 
     private static final String PACKAGE_NAME = "ru.orehovai.livegps";
 
+    //для запроса на сервер(этот сервис работает все время пока работает приложение)
     static final String PROTOCOL = "rtt003";
     static final String IMEI = "356217625371611";
     static final String UTC = "+3";
@@ -58,7 +65,7 @@ public class LocationUpdatesService extends Service {
     private static final long UPDATE_INTERVAL_IN_MILLISECONDS = 10000;
 
     //Самый быстрый показатель для активных обновлений местоположения. Обновления никогда не будут более частыми чем это значение
-    private static final long FASTEST_UPDATE_INTERVAL_IN_MILLISECONDS = UPDATE_INTERVAL_IN_MILLISECONDS / 2;
+    private static final long FASTEST_UPDATE_INTERVAL_IN_MILLISECONDS = UPDATE_INTERVAL_IN_MILLISECONDS;
 
     //Идентификатор уведомления, отображаемого для Foreground service.
     private static final int NOTIFICATION_ID = 12345678;
@@ -77,14 +84,15 @@ public class LocationUpdatesService extends Service {
     //Callback для изменения местоположения
     private LocationCallback mLocationCallback;
 
-    //private Handler mServiceHandler;
-
     //Нынешнее местоположение
     private Location mLocation;
 
     //для отправки данных на сервер
     private DataSendService dataSendService = null;
     private boolean dataBound = false;
+
+    //для определния кол-ва спутников
+    private LocationManager locationManager = null;
 
     private final ServiceConnection dataSendServiceConnection = new ServiceConnection() {
         @Override
@@ -105,6 +113,7 @@ public class LocationUpdatesService extends Service {
     public void onCreate() {
         mFusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
 
+        //колбек с изменениями локации
         mLocationCallback = new LocationCallback() {
             @Override
             public void onLocationResult(LocationResult locationResult) {
@@ -113,14 +122,14 @@ public class LocationUpdatesService extends Service {
             }
         };
 
-        createLocationRequest();
-        getLastLocation();
+        locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
 
+        createLocationRequest();//создание запроса местополодения
+        getLastLocation();//запрос последней локации
+
+        //биндинг сервиса для отправки на сервер данных
         bindService(new Intent(this, DataSendService.class), dataSendServiceConnection, Context.BIND_AUTO_CREATE);
 
-//        HandlerThread handlerThread = new HandlerThread(TAG);
-//        handlerThread.start();
-//        mServiceHandler = new Handler(handlerThread.getLooper());
         mNotificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
 
         // Android O требуется канал дя оповещений
@@ -135,15 +144,15 @@ public class LocationUpdatesService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        Log.i(TAG, "Service started");
+        Log.i(TAG, "Service location started");
         boolean startedFromNotification = intent.getBooleanExtra(EXTRA_STARTED_FROM_NOTIFICATION, false);
         //после удаления обновления местоположения из уведомления
         if (startedFromNotification) {
             removeLocationUpdates();
             stopSelf();
         }
-        //Сообщает системе не пытаться воссоздать службу после ее уничтожения
-        return START_NOT_STICKY;
+        //Сообщает системе пытаться воссоздать службу после ее уничтожения
+        return START_STICKY;
     }
 
     @Override
@@ -183,35 +192,41 @@ public class LocationUpdatesService extends Service {
 
     @Override
     public void onDestroy() {
-//        mServiceHandler.removeCallbacksAndMessages(null);
         if (dataBound) {
             unbindService(dataSendServiceConnection);
             dataBound = false;
         }
+        locationManager.removeGpsStatusListener(this);
+        mFusedLocationClient.removeLocationUpdates(mLocationCallback);
     }
 
     public void requestLocationUpdates() {
-        Log.i(TAG, "Requesting location updates");
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {//необходимая проверка прав перез запросом к LocationManager
+                return;
+            }
+        }
+        locationManager.addGpsStatusListener(this);//добавляем слушатель(для количества спутников)
+        Log.i(TAG, "ЗАпрос на обновление местоположения");
         Utils.setRequestingLocationUpdates(this, true);
         startService(new Intent(getApplicationContext(), LocationUpdatesService.class));
         try {
-            mFusedLocationClient.requestLocationUpdates(mLocationRequest,
-                    mLocationCallback, Looper.myLooper());
+            mFusedLocationClient.requestLocationUpdates(mLocationRequest, mLocationCallback, Looper.myLooper());//запрос информации о местоположении
         } catch (SecurityException unlikely) {
             Utils.setRequestingLocationUpdates(this, false);
-            Log.e(TAG, "Lost location permission. Could not request updates. " + unlikely);
+            Log.e(TAG, "Нет прав на обновление местоположения " + unlikely);
         }
     }
 
     public void removeLocationUpdates() {
-        Log.i(TAG, "Removing location updates");
+        Log.i(TAG, "удаления запроса на местоположение");
         try {
             mFusedLocationClient.removeLocationUpdates(mLocationCallback);
             Utils.setRequestingLocationUpdates(this, false);
             stopSelf();
         } catch (SecurityException unlikely) {
             Utils.setRequestingLocationUpdates(this, true);
-            Log.e(TAG, "Lost location permission. Could not remove updates. " + unlikely);
+            Log.e(TAG, "Нет прав на удаление запроса о местополодении" + unlikely);
         }
     }
 
@@ -260,17 +275,17 @@ public class LocationUpdatesService extends Service {
                             if (task.isSuccessful() && task.getResult() != null) {
                                 mLocation = task.getResult();
                             } else {
-                                Log.w(TAG, "Failed to get location.");
+                                Log.w(TAG, "Ошибка получения местополодения");
                             }
                         }
                     });
         } catch (SecurityException unlikely) {
-            Log.e(TAG, "Lost location permission." + unlikely);
+            Log.e(TAG, "Нет прав на получение местополодения" + unlikely);
         }
     }
 
     private void onNewLocation(Location location) {
-        Log.i(TAG, "New location: " + location);
+        Log.i(TAG, "Новое местоположение: " + location);
 
         mLocation = location;
 
@@ -279,9 +294,9 @@ public class LocationUpdatesService extends Service {
         intent.putExtra(EXTRA_LOCATION, location);
         LocalBroadcastManager.getInstance(getApplicationContext()).sendBroadcast(intent);
 
-        if (location != null)dataSendService.setLocation(location);
+        if (location != null) dataSendService.setLocation(location);//уведомляем о новой локации сервис отправки на сервер
         //отправляем полученные данные на сервер
-        if (dataBound)dataSendService.sendData();
+        if (dataBound) dataSendService.sendData();
 
         // Обновление содержимого уведомления, если оно работает в Foreground Service.
         if (serviceIsRunningInForeground(this)) {
@@ -318,4 +333,34 @@ public class LocationUpdatesService extends Service {
         }
         return false;
     }
+
+    //слушатель изменения gps(для количества спутников)
+    @Override
+    public void onGpsStatusChanged(int event) {
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                Log.e(TAG, "Permission in onGpsStatusChanged denied");
+                return;
+            }
+        }
+        GpsStatus gpsStatus = locationManager.getGpsStatus(null);
+        if (gpsStatus != null) {
+            int satellites = 0;
+            //int sattelitesInFix = 0;
+            //int timeToFix = locationManager.getGpsStatus(null).getTimeToFirstFix();
+            for (GpsSatellite sat : locationManager.getGpsStatus(null).getSatellites()) {
+                //if (sat.usedInFix()) {
+                    //sattelitesInFix++;//для зафиксированных спутников. по какой то причине спутники не фиксируются.
+                    // в задании указано число спутников >30 и требуется количество спутников.
+                    // Я сделал вывод что имеется ввиду общее количество. Его и использовал в ответе серверу.
+                //}
+                satellites++;
+            }
+            Log.e(TAG, "We have " + satellites + " satellites");
+            if (dataBound)dataSendService.setNumOfSats(satellites);
+        } else if (dataBound)dataSendService.setNumOfSats(0); //на случай отсутствия информации о спутниках
+
+    }
+
 }
