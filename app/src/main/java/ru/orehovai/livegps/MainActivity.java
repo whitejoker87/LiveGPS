@@ -34,6 +34,7 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.Toast;
 
+//я поситал что все можно сделать в активити т.к. интерфейс не богат
 public class MainActivity extends AppCompatActivity implements
         SharedPreferences.OnSharedPreferenceChangeListener {
     private static final String TAG = MainActivity.class.getSimpleName();
@@ -108,6 +109,7 @@ public class MainActivity extends AppCompatActivity implements
         mRequestLocationUpdatesButton = binding.requestLocationUpdatesButton;
         mRemoveLocationUpdatesButton = binding.removeLocationUpdatesButton;
 
+        //этот слушатель и тот что ниже можно перенсти во вью модел и испольщовать data binding для прослушивания
         mRequestLocationUpdatesButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {

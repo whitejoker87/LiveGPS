@@ -11,7 +11,7 @@ import java.net.Socket;
 public class TCPClient {
 
     //данные сервера
-    public static final String SERVER_IP = "srv1.livegpstracks.com"; // your computer IP
+    public static final String SERVER_IP = "srv1.livegpstracks.com";
     public static final int SERVER_PORT = 3359;
     // Слушатель для ответных сообщений с сервера(на будущее)
     //private OnMessageReceived mMessageListener = null;
@@ -82,17 +82,14 @@ public class TCPClient {
 //                    while (mRun) {
 //                        mServerMessage = mBufferIn.readLine();
 //                        if (mServerMessage != null && mMessageListener != null) {
-//                            // call the method messageReceived from MyActivity class
+//                            // можно вызвать из активити
 //                            mMessageListener.messageReceived(mServerMessage);
 //                        }
 //                    }
                 } catch (Exception e) {
                     e.printStackTrace();
                 } finally {
-                    // the socket must be closed. It is not possible to reconnect to
-                    // this socket
-                    // after it is closed, which means a new socket instance has to
-                    // be created.
+                    //закрываем сокет после передачи
                     socket.close();
                 }
             } catch (Exception e) {
@@ -102,9 +99,7 @@ public class TCPClient {
 
     }
 
-    // Declare the interface. The method messageReceived(String message) will
-    // must be implemented in the MyActivity
-    // class at on asynckTask doInBackground
+    // Интерфейс для колбека в активити(или перенести во ViewModel)
 //    public interface OnMessageReceived {
 //        public void messageReceived(String message);
 //    }
